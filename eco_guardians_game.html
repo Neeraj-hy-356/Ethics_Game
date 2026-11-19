@@ -1,0 +1,785 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Eco Guardians: Sustainability Game</title>
+    <style>
+        * { box-sizing: border-box; }
+        body, html {
+            margin: 0;
+            padding: 0;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            background-color: #1a202c;
+            font-family: 'Inter', system-ui, sans-serif;
+            color: white;
+            user-select: none;
+        }
+        canvas {
+            display: block;
+            width: 100%;
+            height: 100%;
+        }
+        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar-thumb { background: #4a5568; border-radius: 4px; }
+        
+        /* Layout Utilities */
+        .absolute-overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none; display: flex; flex-direction: column; }
+        .pointer-events-auto { pointer-events: auto; }
+        .hidden { display: none !important; }
+        
+        /* HUD UI */
+        .hud-container { width: 100%; padding: 16px; display: flex; justify-content: space-between; align-items: flex-start; }
+        .hud-col { display: flex; flex-direction: column; gap: 8px; }
+        .hud-box { background: rgba(17, 24, 39, 0.8); padding: 12px; border-radius: 8px; border: 1px solid #374151; backdrop-filter: blur(4px); box-shadow: 0 4px 6px rgba(0,0,0,0.3); }
+        .hud-box-health { width: 256px; }
+        
+        .btn-small { background: rgba(31, 41, 55, 0.8); color: white; padding: 8px 16px; border-radius: 8px; border: 1px solid #4b5563; cursor: pointer; transition: background 0.2s; width: max-content; }
+        .btn-small:hover { background: #374151; }
+        
+        /* Typography */
+        .text-sm { font-size: 0.875rem; }
+        .text-md { font-size: 1rem; }
+        .text-xl { font-size: 1.25rem; }
+        .text-2xl { font-size: 1.5rem; font-weight: bold; margin-bottom: 8px; margin-top: 0; }
+        .text-gray { color: #d1d5db; margin: 0; }
+        .text-gray-dark { color: #9ca3af; margin: 0; }
+        .text-green { color: #4ade80; margin: 0; }
+        .text-yellow { color: #facc15; margin: 0; }
+        .text-red { color: #f87171; margin: 0; }
+        .font-bold { font-weight: bold; }
+        .font-semibold { font-weight: 600; }
+        .tracking-wider { letter-spacing: 0.05em; }
+        .mb-1 { margin-bottom: 4px; }
+        .mb-2 { margin-bottom: 8px; }
+        .mt-1 { margin-top: 4px; }
+        .mt-12 { margin-top: 48px; }
+        .text-center { text-align: center; }
+        
+        /* Health Bar */
+        .health-bar-track { width: 100%; background: #374151; border-radius: 9999px; height: 16px; overflow: hidden; }
+        .health-bar-fill { height: 100%; background: linear-gradient(to right, #ef4444, #facc15, #22c55e); transition: width 0.3s; }
+        
+        /* Main Menu UI */
+        .menu-container { background: rgba(17, 24, 39, 0.9); backdrop-filter: blur(12px); justify-content: center; align-items: center; }
+        .menu-header { text-align: center; margin-bottom: 40px; }
+        .title { font-size: 3.75rem; font-weight: 800; background: linear-gradient(to right, #4ade80, #3b82f6); -webkit-background-clip: text; color: transparent; filter: drop-shadow(0 4px 6px rgba(0,0,0,0.5)); margin: 0 0 16px 0; }
+        .subtitle { font-size: 1.25rem; color: #d1d5db; max-width: 32rem; margin: 0 auto; }
+        
+        .modes-grid { display: flex; flex-wrap: wrap; justify-content: center; gap: 24px; max-width: 56rem; }
+        
+        /* Mode Buttons */
+        .mode-btn { position: relative; padding: 24px; border-radius: 16px; border: 2px solid; cursor: pointer; transition: transform 0.2s, background 0.2s; width: 256px; text-align: center; color: white; display: block; text-decoration: none; }
+        .mode-btn:hover { transform: scale(1.05); }
+        .mode-icon { font-size: 3rem; margin-bottom: 12px; display: inline-block; transition: transform 0.3s; }
+        .mode-btn:hover .mode-icon { transform: translateY(-8px); }
+        
+        .btn-earth { background: rgba(22, 101, 52, 0.5); border-color: #22c55e; box-shadow: 0 0 15px rgba(34,197,94,0.4); }
+        .btn-earth:hover { background: rgba(22, 101, 52, 0.8); }
+        .btn-earth h2 { color: #86efac; }
+        
+        .btn-air { background: rgba(30, 64, 175, 0.5); border-color: #60a5fa; box-shadow: 0 0 15px rgba(96,165,250,0.4); }
+        .btn-air:hover { background: rgba(30, 64, 175, 0.8); }
+        .btn-air h2 { color: #bfdbfe; }
+        
+        .btn-water { background: rgba(22, 78, 99, 0.5); border-color: #22d3ee; box-shadow: 0 0 15px rgba(34,211,238,0.4); }
+        .btn-water:hover { background: rgba(22, 78, 99, 0.8); }
+        .btn-water h2 { color: #a5f3fc; }
+        
+        kbd { background: #374151; padding: 4px 8px; border-radius: 4px; font-family: monospace; border: 1px solid #4b5563; }
+        
+        /* Floating animation for menu elements */
+        @keyframes float {
+            0% { transform: translateY(0px); }
+            50% { transform: translateY(-10px); }
+            100% { transform: translateY(0px); }
+        }
+        .animate-float { animation: float 3s ease-in-out infinite; }
+    </style>
+</head>
+<body>
+
+    <!-- Game Canvas -->
+    <canvas id="gameCanvas"></canvas>
+
+    <!-- UI Overlay -->
+    <div id="ui-layer" class="absolute-overlay pointer-events-none">
+        
+        <!-- Heads Up Display (HUD) -->
+        <div id="hud" class="hud-container hidden pointer-events-auto">
+            <div class="hud-col">
+                <button id="btn-menu" class="btn-small">⬅ Return to Menu</button>
+                <div class="hud-box mt-1">
+                    <p id="instruction-text" class="text-sm text-gray mb-1">Instruction</p>
+                    <p class="text-xl font-bold text-green mb-1">Score: <span id="score-display">0</span></p>
+                    <p id="inventory-display" class="text-md text-yellow font-semibold mt-1">Inventory: 0/5</p>
+                </div>
+            </div>
+
+            <!-- Health Bar -->
+            <div class="hud-box hud-box-health">
+                <p class="text-sm text-center mb-2 font-semibold tracking-wider">ENVIRONMENT HEALTH</p>
+                <div class="health-bar-track">
+                    <div id="health-bar" class="health-bar-fill" style="width: 10%;"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Main Menu -->
+        <div id="main-menu" class="absolute-overlay menu-container pointer-events-auto">
+            <div class="menu-header animate-float">
+                <h1 class="title">Eco Guardians</h1>
+                <p class="subtitle">Take action to restore our planet. Choose a mission below to begin cleaning up the environment.</p>
+            </div>
+
+            <div class="modes-grid">
+                <!-- Earth Mode Button -->
+                <button onclick="startGame('EARTH')" class="mode-btn btn-earth">
+                    <div class="mode-icon">🛻</div>
+                    <h2 class="text-2xl">Earth Mode</h2>
+                    <p class="text-sm text-gray">Collect land garbage and bring it to the recycle station.</p>
+                </button>
+
+                <!-- Air Mode Button -->
+                <button onclick="startGame('AIR')" class="mode-btn btn-air">
+                    <div class="mode-icon">🚁</div>
+                    <h2 class="text-2xl">Air Mode</h2>
+                    <p class="text-sm text-gray">Vacuum smog and release pure oxygen at the extraction tree.</p>
+                </button>
+
+                <!-- Water Mode Button -->
+                <button onclick="startGame('WATER')" class="mode-btn btn-water">
+                    <div class="mode-icon">🚤</div>
+                    <h2 class="text-2xl">Water Mode</h2>
+                    <p class="text-sm text-gray">Collect floating plastic and deliver it to the purification dock.</p>
+                </button>
+            </div>
+            
+            <div class="mt-12 text-gray-dark text-sm">
+                Controls: Use <kbd>W</kbd> <kbd>A</kbd> <kbd>S</kbd> <kbd>D</kbd> or <kbd>Arrow Keys</kbd> to move.
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        // --- Setup & Context ---
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        
+        // UI Elements
+        const mainMenu = document.getElementById('main-menu');
+        const hud = document.getElementById('hud');
+        const btnMenu = document.getElementById('btn-menu');
+        const scoreDisplay = document.getElementById('score-display');
+        const healthBar = document.getElementById('health-bar');
+        const inventoryDisplay = document.getElementById('inventory-display');
+        const instructionText = document.getElementById('instruction-text');
+
+        // --- Game State Variables ---
+        let currentMode = 'MENU'; // MENU, EARTH, AIR, WATER
+        let animationId;
+        let lastTime = 0;
+        
+        let score = 0;
+        let health = 10; // 0 to 100
+        const MAX_INVENTORY = 5;
+
+        // Input Tracking
+        const keys = {
+            ArrowUp: false, ArrowDown: false, ArrowLeft: false, ArrowRight: false,
+            w: false, a: false, s: false, d: false
+        };
+
+        // --- Entities ---
+        const player = {
+            x: 0, y: 0, 
+            size: 50, speed: 300, // speed in pixels per second
+            color: '#111827',
+            inventory: 0
+        };
+
+        const station = {
+            x: 0, y: 0, size: 100,
+            color: '#1a202c', active: false
+        };
+
+        let collectibles = [];
+        let particles = [];
+        let npcs = [];
+        let hazards = [];
+        let hazardSpawnTimer = 0;
+        let ambientGarbageTimer = 0;
+
+        // --- Event Listeners ---
+        window.addEventListener('resize', resizeCanvas);
+        
+        window.addEventListener('keydown', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = true;
+        });
+        window.addEventListener('keyup', (e) => {
+            if (keys.hasOwnProperty(e.key)) keys[e.key] = false;
+        });
+
+        btnMenu.addEventListener('click', returnToMenu);
+
+        // --- Core Functions ---
+        function resizeCanvas() {
+            canvas.width = window.innerWidth;
+            canvas.height = window.innerHeight;
+            
+            // Reposition station if it's off-screen
+            if (station.x > canvas.width) station.x = canvas.width - 150;
+            if (station.y > canvas.height) station.y = canvas.height - 150;
+        }
+
+        function startGame(mode) {
+            currentMode = mode;
+            resizeCanvas();
+            
+            // Reset stats
+            score = 0;
+            health = 10;
+            player.inventory = 0;
+            collectibles = [];
+            particles = [];
+            npcs = [];
+            hazards = [];
+            hazardSpawnTimer = 3;
+            ambientGarbageTimer = 2;
+            
+            // Center Player
+            player.x = canvas.width / 2;
+            player.y = canvas.height / 2;
+
+            // Setup Mode Specifics
+            mainMenu.classList.add('hidden');
+            hud.classList.remove('hidden');
+
+            if (mode === 'EARTH') {
+                player.color = '#111827'; // Dark charcoal car
+                station.active = true;
+                station.color = '#1a202c'; // Dark industrial factory
+                station.x = canvas.width - 150;
+                station.y = canvas.height - 150;
+                instructionText.innerText = "Collect dark garbage and drop at the Recycle Factory!";
+                inventoryDisplay.classList.remove('hidden');
+            } else if (mode === 'AIR') {
+                player.color = '#475569'; // Gray vacuum
+                station.active = true;
+                station.color = '#64748b'; // Extractor Tower
+                station.x = 100;
+                station.y = canvas.height - 150;
+                instructionText.innerText = "Vacuum smog and drop at the Extractor Tower!";
+                inventoryDisplay.classList.remove('hidden');
+            } else if (mode === 'WATER') {
+                player.color = '#ef4444'; // Red/white boat
+                station.active = true;
+                station.color = '#78350f'; // Purification dock
+                station.x = canvas.width / 2;
+                station.y = 100;
+                instructionText.innerText = "Collect plastic and drop at the Purification Dock!";
+                inventoryDisplay.classList.remove('hidden');
+            }
+
+            // Spawn NPCs for all modes
+            for(let i=0; i<3; i++) spawnNPC();
+
+            updateUI();
+            
+            // Spawn initial items
+            for(let i=0; i<8; i++) spawnCollectible();
+
+            lastTime = performance.now();
+            animationId = requestAnimationFrame(gameLoop);
+        }
+
+        function returnToMenu() {
+            cancelAnimationFrame(animationId);
+            currentMode = 'MENU';
+            mainMenu.classList.remove('hidden');
+            hud.classList.add('hidden');
+        }
+
+        function spawnCollectible() {
+            const padding = 50;
+            let color, driftX = 0, driftY = 0;
+            
+            if (currentMode === 'EARTH') {
+                color = Math.random() > 0.5 ? '#1c1917' : '#27272a'; // Dark brown or dark grey
+            } else if (currentMode === 'AIR') {
+                color = '#475569'; // Smog
+                driftX = (Math.random() - 0.5) * 20;
+                driftY = (Math.random() - 0.5) * 20;
+            } else if (currentMode === 'WATER') {
+                color = Math.random() > 0.5 ? '#fcd34d' : '#f87171'; // Floating plastic
+                driftX = (Math.random() - 0.5) * 20;
+                driftY = (Math.random() - 0.5) * 20;
+            }
+
+            collectibles.push({
+                x: Math.random() * (canvas.width - padding*2) + padding,
+                y: Math.random() * (canvas.height - padding*2) + padding,
+                size: 25,
+                color: color,
+                driftX: driftX,
+                driftY: driftY
+            });
+        }
+
+        function spawnParticles(x, y, color, count) {
+            for (let i = 0; i < count; i++) {
+                particles.push({
+                    x: x,
+                    y: y,
+                    vx: (Math.random() - 0.5) * 100,
+                    vy: (Math.random() - 0.5) * 100 - 50, // general upward trend
+                    life: 1.0,
+                    color: color
+                });
+            }
+        }
+
+        function spawnNPC() {
+            npcs.push({
+                x: Math.random() * (canvas.width - 100) + 50,
+                y: Math.random() * (canvas.height - 100) + 50,
+                size: 20,
+                vx: (Math.random() - 0.5) * 100,
+                vy: (Math.random() - 0.5) * 100,
+                litterTimer: Math.random() * 3 + 2,
+                color: '#f87171' // Reddish/pink person
+            });
+        }
+
+        function spawnHazard(moveX = 0, moveY = 0) {
+            let spawnX, spawnY;
+            
+            if (moveX === 0 && moveY === 0) {
+                // Random spawn if player is not moving
+                spawnX = Math.random() * (canvas.width - 100) + 50;
+                spawnY = Math.random() * (canvas.height - 100) + 50;
+            } else {
+                // Predictive spawning: throw it heavily in front of the player's path
+                const distanceAhead = Math.random() * 200 + 150; // 150-350px ahead
+                const spreadX = (Math.random() - 0.5) * 60; // Much tighter random spread
+                const spreadY = (Math.random() - 0.5) * 60;
+                
+                spawnX = player.x + (moveX * distanceAhead) + spreadX;
+                spawnY = player.y + (moveY * distanceAhead) + spreadY;
+                
+                // Keep within canvas bounds
+                spawnX = Math.max(50, Math.min(canvas.width - 50, spawnX));
+                spawnY = Math.max(50, Math.min(canvas.height - 50, spawnY));
+            }
+
+            hazards.push({
+                x: spawnX,
+                y: spawnY,
+                size: 35,
+                timeLeft: Math.random() * 3 + 4, // Lives 4-7 seconds
+                color: '#ef4444' // Toxic red
+            });
+        }
+
+        function updateUI() {
+            scoreDisplay.innerText = score;
+            inventoryDisplay.innerText = `Inventory: ${player.inventory}/${MAX_INVENTORY}`;
+            
+            // Update health bar styling
+            healthBar.style.width = `${Math.min(health, 100)}%`;
+            if (player.inventory >= MAX_INVENTORY) {
+                inventoryDisplay.classList.add('text-red');
+                inventoryDisplay.classList.remove('text-yellow');
+                inventoryDisplay.innerText = "Inventory FULL! Go to station!";
+            } else {
+                inventoryDisplay.classList.remove('text-red');
+                inventoryDisplay.classList.add('text-yellow');
+            }
+        }
+
+        // --- Math & Collision ---
+        function checkCollision(x1, y1, size1, x2, y2, size2) {
+            const dx = x1 - x2;
+            const dy = y1 - y2;
+            const distance = Math.sqrt(dx * dx + dy * dy);
+            return distance < (size1/2 + size2/2);
+        }
+
+        // Blends two RGB arrays based on a factor from 0 to 1
+        function interpolateColor(rgb1, rgb2, factor) {
+            const r = Math.round(rgb1[0] + factor * (rgb2[0] - rgb1[0]));
+            const g = Math.round(rgb1[1] + factor * (rgb2[1] - rgb1[1]));
+            const b = Math.round(rgb1[2] + factor * (rgb2[2] - rgb1[2]));
+            return `rgb(${r}, ${g}, ${b})`;
+        }
+
+        // --- Game Loop ---
+        function gameLoop(currentTime) {
+            const dt = (currentTime - lastTime) / 1000; // Delta time in seconds
+            lastTime = currentTime;
+
+            update(dt);
+            draw();
+
+            if (currentMode !== 'MENU') {
+                animationId = requestAnimationFrame(gameLoop);
+            }
+        }
+
+        function update(dt) {
+            // Player Movement
+            let moveX = 0;
+            let moveY = 0;
+            
+            if (keys.ArrowUp || keys.w) moveY -= 1;
+            if (keys.ArrowDown || keys.s) moveY += 1;
+            if (keys.ArrowLeft || keys.a) moveX -= 1;
+            if (keys.ArrowRight || keys.d) moveX += 1;
+
+            // Normalize diagonal movement
+            if (moveX !== 0 && moveY !== 0) {
+                const length = Math.sqrt(moveX*moveX + moveY*moveY);
+                moveX /= length;
+                moveY /= length;
+            }
+
+            player.x += moveX * player.speed * dt;
+            player.y += moveY * player.speed * dt;
+
+            // Boundaries
+            player.x = Math.max(player.size/2, Math.min(canvas.width - player.size/2, player.x));
+            player.y = Math.max(player.size/2, Math.min(canvas.height - player.size/2, player.y));
+
+            // Update Collectibles (Drift for Air and Water)
+            if (currentMode === 'AIR' || currentMode === 'WATER') {
+                collectibles.forEach(item => {
+                    item.x += item.driftX * dt;
+                    item.y += item.driftY * dt;
+                    // Bounce off walls
+                    if (item.x < 0 || item.x > canvas.width) item.driftX *= -1;
+                    if (item.y < 0 || item.y > canvas.height) item.driftY *= -1;
+                });
+            }
+
+            // Collection Logic
+            for (let i = collectibles.length - 1; i >= 0; i--) {
+                const item = collectibles[i];
+                if (checkCollision(player.x, player.y, player.size, item.x, item.y, item.size)) {
+                    // Inventory system for all modes
+                    if (player.inventory < MAX_INVENTORY) {
+                        collectibles.splice(i, 1);
+                        player.inventory++;
+                        updateUI();
+                        // Instantly spawn a new piece of garbage to replace the collected one
+                        spawnCollectible();
+                    }
+                }
+            }
+
+            // Station Drop-off Logic
+            if (station.active && player.inventory > 0) {
+                if (checkCollision(player.x, player.y, player.size, station.x, station.y, station.size)) {
+                    // Success!
+                    score += player.inventory * 15;
+                    health += player.inventory * 5;
+                    
+                    if (currentMode === 'AIR') {
+                        // Release pure oxygen particles
+                        spawnParticles(station.x, station.y - 40, '#a5f3fc', player.inventory * 10);
+                    } else if (currentMode === 'WATER') {
+                        // Splash particles
+                        spawnParticles(station.x, station.y, '#38bdf8', player.inventory * 10);
+                    } else {
+                        // Release green recycle particles
+                        spawnParticles(station.x, station.y, '#4ade80', player.inventory * 10);
+                    }
+
+                    player.inventory = 0;
+                    updateUI();
+                }
+            }
+
+            // Update Particles
+            for (let i = particles.length - 1; i >= 0; i--) {
+                const p = particles[i];
+                p.x += p.vx * dt;
+                p.y += p.vy * dt;
+                p.life -= dt * 1.5; // Fade out speed
+                if (p.life <= 0) particles.splice(i, 1);
+            }
+
+            // Slowly decay health to add urgency
+            health -= dt * 0.5;
+            if (health < 0) health = 0;
+            if (Math.random() < 0.05) updateUI(); // Throttle UI updates for health decay
+
+            // -- Ambient Garbage, NPCs & Hazards (ALL MODES) --
+            if (currentMode !== 'MENU') {
+                const cleanFactor = Math.max(0, Math.min(score / 300, 1.0));
+                
+                // Ambient garbage spawning based on cleanliness
+                ambientGarbageTimer -= dt;
+                if (ambientGarbageTimer <= 0) {
+                    const maxGarbage = 10 + Math.floor(50 * cleanFactor); // More max garbage allowed as it gets cleaner
+                    if (collectibles.length < maxGarbage) {
+                        spawnCollectible();
+                        // Spawn a double burst occasionally when the Earth is getting very clean
+                        if (cleanFactor > 0.6 && Math.random() < 0.5) spawnCollectible();
+                    }
+                    // Spawn rate speeds up dramatically (from 2.0s to 0.15s per spawn)
+                    ambientGarbageTimer = 2.0 - (1.85 * cleanFactor); 
+                }
+
+                // Update NPCs
+                npcs.forEach(npc => {
+                    npc.x += npc.vx * dt;
+                    npc.y += npc.vy * dt;
+                    if (npc.x < 0 || npc.x > canvas.width) npc.vx *= -1;
+                    if (npc.y < 0 || npc.y > canvas.height) npc.vy *= -1;
+                    
+                    npc.litterTimer -= dt;
+                    if (npc.litterTimer <= 0) {
+                        let color, driftX = 0, driftY = 0;
+                        if (currentMode === 'EARTH') color = Math.random() > 0.5 ? '#1c1917' : '#27272a';
+                        else if (currentMode === 'AIR') { color = '#475569'; driftX = (Math.random() - 0.5) * 20; driftY = (Math.random() - 0.5) * 20; }
+                        else if (currentMode === 'WATER') { color = Math.random() > 0.5 ? '#fcd34d' : '#f87171'; driftX = (Math.random() - 0.5) * 20; driftY = (Math.random() - 0.5) * 20; }
+
+                        collectibles.push({ x: npc.x, y: npc.y, size: 25, color: color, driftX: driftX, driftY: driftY });
+                        npc.litterTimer = Math.random() * 4 + 2; // reset litter timer
+                    }
+                });
+
+                // Spawn Hazards dynamically based on cleanliness and movement
+                hazardSpawnTimer -= dt;
+                if (hazardSpawnTimer <= 0) {
+                    const maxHazards = 4 + Math.floor(16 * cleanFactor); // Up to 20 hazards when fully green
+                    if (hazards.length < maxHazards) {
+                        spawnHazard(moveX, moveY);
+                    }
+                    // Spawn much faster as it gets cleaner (from 1.5s down to 0.15s)
+                    hazardSpawnTimer = Math.max(0.15, 1.5 - (1.35 * cleanFactor)); 
+                }
+
+                // Update Hazards & Check Collisions
+                for (let i = hazards.length - 1; i >= 0; i--) {
+                    const h = hazards[i];
+                    h.timeLeft -= dt;
+                    if (h.timeLeft <= 0) {
+                        hazards.splice(i, 1);
+                        continue;
+                    }
+
+                    // Penalty for touching hazard
+                    if (checkCollision(player.x, player.y, player.size, h.x, h.y, h.size)) {
+                        score = Math.max(0, score - 50); // Downgrade color
+                        player.inventory = 0; // Spill inventory
+                        spawnParticles(player.x, player.y, '#ef4444', 20); // Penalty burst
+                        hazards.splice(i, 1);
+                        updateUI();
+                    }
+                }
+            }
+        }
+
+        function draw() {
+            // Draw Background based on mode (Progressive Healing)
+            const cleanFactor = Math.max(0, Math.min(score / 300, 1.0)); 
+            
+            if (currentMode === 'EARTH') {
+                const pollutionColor = [120, 100, 70]; // Muddy brown
+                const healthyColor = [34, 139, 34]; // Bright green
+                ctx.fillStyle = interpolateColor(pollutionColor, healthyColor, cleanFactor);
+            } else if (currentMode === 'AIR') {
+                const pollutionColor = [130, 130, 120]; // Smoggy gray
+                const healthyColor = [135, 206, 235]; // Clear sky blue
+                ctx.fillStyle = interpolateColor(pollutionColor, healthyColor, cleanFactor);
+            } else if (currentMode === 'WATER') {
+                const pollutionColor = [70, 90, 60]; // Murky green
+                const healthyColor = [0, 150, 255]; // Clear ocean blue
+                ctx.fillStyle = interpolateColor(pollutionColor, healthyColor, cleanFactor);
+            } else {
+                ctx.fillStyle = '#1a202c'; // Menu Fallback
+            }
+            
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+
+            // Draw grid pattern for aesthetics
+            ctx.strokeStyle = 'rgba(255, 255, 255, 0.05)';
+            ctx.lineWidth = 1;
+            for(let i=0; i<canvas.width; i+=100) {
+                ctx.beginPath(); ctx.moveTo(i, 0); ctx.lineTo(i, canvas.height); ctx.stroke();
+            }
+            for(let i=0; i<canvas.height; i+=100) {
+                ctx.beginPath(); ctx.moveTo(0, i); ctx.lineTo(canvas.width, i); ctx.stroke();
+            }
+
+            // Draw Collectibles
+            collectibles.forEach(item => {
+                ctx.fillStyle = item.color;
+                if (currentMode === 'EARTH') {
+                    // Dark garbage blocks
+                    ctx.fillRect(item.x - item.size/2, item.y - item.size/2, item.size, item.size);
+                } else if (currentMode === 'AIR') {
+                    // Smog clouds
+                    ctx.beginPath();
+                    ctx.arc(item.x, item.y, item.size/2.2, 0, Math.PI*2);
+                    ctx.arc(item.x - 8, item.y - 4, item.size/3, 0, Math.PI*2);
+                    ctx.arc(item.x + 8, item.y - 4, item.size/3, 0, Math.PI*2);
+                    ctx.fill();
+                } else if (currentMode === 'WATER') {
+                    // Floating plastic
+                    ctx.fillRect(item.x - item.size/2, item.y - item.size/4, item.size, item.size/2);
+                    // Add a slight shine to look like plastic
+                    ctx.fillStyle = 'rgba(255,255,255,0.4)';
+                    ctx.fillRect(item.x - item.size/2 + 2, item.y - item.size/4 + 2, item.size - 4, item.size/2 - 4);
+                }
+            });
+
+            ctx.textAlign = "center";
+            ctx.textBaseline = "middle";
+
+            // Draw Station (if active)
+            if (station.active) {
+                // Station aura/glow
+                const pulse = Math.sin(Date.now() / 300) * 10;
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.beginPath();
+                ctx.arc(station.x, station.y, station.size/2 + pulse, 0, Math.PI * 2);
+                ctx.fill();
+
+                ctx.fillStyle = station.color;
+                if (currentMode === 'EARTH') {
+                    // Dark Industrial Building
+                    ctx.fillRect(station.x - 50, station.y - 30, 100, 60);
+                    ctx.fillStyle = '#0f172a'; // Darker smokestacks
+                    ctx.fillRect(station.x - 30, station.y - 60, 15, 30); 
+                    ctx.fillRect(station.x + 15, station.y - 50, 15, 20); 
+                } else if (currentMode === 'AIR') {
+                    // Extractor Tower
+                    ctx.fillStyle = station.color; // Base
+                    ctx.fillRect(station.x - 30, station.y - 40, 60, 80);
+                    ctx.fillStyle = '#38bdf8'; // Glowing core
+                    ctx.beginPath(); ctx.arc(station.x, station.y - 40, 25, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#cbd5e1'; // Antenna
+                    ctx.fillRect(station.x - 2, station.y - 80, 4, 40);
+                } else if (currentMode === 'WATER') {
+                    // Dock
+                    ctx.fillRect(station.x - 50, station.y - 40, 100, 80);
+                    ctx.fillStyle = '#fbbf24'; // Dock markings
+                    ctx.fillRect(station.x - 40, station.y - 30, 80, 10);
+                }
+                
+                // Draw indicator arrow if inventory is full
+                if (player.inventory >= MAX_INVENTORY) {
+                    ctx.fillStyle = '#ffffff';
+                    ctx.font = `30px Arial`;
+                    ctx.fillText('⬇', station.x, station.y - 80);
+                }
+            }
+
+            // Draw Hazards
+            hazards.forEach(h => {
+                // Flash when about to despawn
+                if (h.timeLeft < 1.5 && Math.floor(Date.now() / 150) % 2 === 0) return;
+                
+                if (currentMode === 'EARTH') {
+                    ctx.fillStyle = h.color; // Red toxic dustbin
+                    ctx.fillRect(h.x - h.size/2, h.y - h.size/2, h.size, h.size);
+                    // Draw 'X' on the bin
+                    ctx.strokeStyle = '#000000'; ctx.lineWidth = 3;
+                    ctx.beginPath();
+                    ctx.moveTo(h.x - h.size/3, h.y - h.size/3); ctx.lineTo(h.x + h.size/3, h.y + h.size/3);
+                    ctx.moveTo(h.x + h.size/3, h.y - h.size/3); ctx.lineTo(h.x - h.size/3, h.y + h.size/3);
+                    ctx.stroke();
+                } else if (currentMode === 'AIR') {
+                    ctx.fillStyle = 'rgba(239, 68, 68, 0.8)'; // Toxic Red Cloud
+                    ctx.beginPath();
+                    ctx.arc(h.x, h.y, h.size/2, 0, Math.PI*2);
+                    ctx.arc(h.x - 12, h.y - 12, h.size/2, 0, Math.PI*2);
+                    ctx.arc(h.x + 12, h.y - 12, h.size/2, 0, Math.PI*2);
+                    ctx.fill();
+                } else if (currentMode === 'WATER') {
+                    ctx.fillStyle = '#1e293b'; // Sea Mine Base
+                    ctx.beginPath(); ctx.arc(h.x, h.y, h.size/2, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#ef4444'; // Red center
+                    ctx.beginPath(); ctx.arc(h.x, h.y, h.size/4, 0, Math.PI*2); ctx.fill();
+                    // Spikes
+                    ctx.strokeStyle = '#1e293b'; ctx.lineWidth = 4;
+                    ctx.beginPath(); ctx.moveTo(h.x - h.size/1.5, h.y); ctx.lineTo(h.x + h.size/1.5, h.y); ctx.stroke();
+                    ctx.beginPath(); ctx.moveTo(h.x, h.y - h.size/1.5); ctx.lineTo(h.x, h.y + h.size/1.5); ctx.stroke();
+                }
+            });
+
+            // Draw NPCs
+            npcs.forEach(npc => {
+                if (currentMode === 'EARTH') {
+                    ctx.fillStyle = '#f87171'; // Reddish person
+                    ctx.beginPath(); ctx.arc(npc.x, npc.y - 12, npc.size/2, 0, Math.PI*2); ctx.fill();
+                    ctx.fillRect(npc.x - npc.size/2, npc.y - 5, npc.size, npc.size);
+                } else if (currentMode === 'AIR') {
+                    ctx.fillStyle = '#a8a29e'; // Polluting Blimp
+                    ctx.beginPath(); ctx.ellipse(npc.x, npc.y, npc.size, npc.size/1.5, 0, 0, Math.PI*2); ctx.fill();
+                    ctx.fillStyle = '#44403c'; // Blimp cabin
+                    ctx.fillRect(npc.x - npc.size/2, npc.y + npc.size/2, npc.size, 10);
+                } else if (currentMode === 'WATER') {
+                    ctx.fillStyle = '#44403c'; // Cargo Ship
+                    ctx.fillRect(npc.x - npc.size, npc.y - npc.size/2, npc.size*2, npc.size);
+                    ctx.fillStyle = '#991b1b'; // Shipping containers
+                    ctx.fillRect(npc.x - npc.size/2, npc.y - npc.size/2 - 10, npc.size, 10);
+                }
+            });
+
+            // Draw Player
+            ctx.save();
+            ctx.translate(player.x, player.y);
+            if (keys.ArrowLeft || keys.a) {
+                ctx.scale(-1, 1); // Flip horizontally
+            }
+
+            ctx.fillStyle = player.color;
+            if (currentMode === 'EARTH') {
+                // Dark Car
+                ctx.fillRect(-player.size/2, -player.size/4, player.size, player.size/2); // body
+                ctx.fillRect(-player.size/4, -player.size/2, player.size/2, player.size/4); // cabin
+                ctx.fillStyle = '#000000'; // wheels
+                ctx.beginPath(); ctx.arc(-player.size/3, player.size/4, 8, 0, Math.PI*2); ctx.fill(); 
+                ctx.beginPath(); ctx.arc(player.size/3, player.size/4, 8, 0, Math.PI*2); ctx.fill();  
+            } else if (currentMode === 'AIR') {
+                // Vacuum / Heli
+                ctx.beginPath(); ctx.ellipse(0, 0, player.size/2, player.size/4, 0, 0, Math.PI*2); ctx.fill();
+                ctx.fillStyle = '#cbd5e1'; // Cockpit glass
+                ctx.fillRect(-player.size/4, -player.size/2, player.size/2, player.size/4);
+            } else if (currentMode === 'WATER') {
+                // Boat
+                ctx.beginPath();
+                ctx.moveTo(-player.size/2, -player.size/4);
+                ctx.lineTo(player.size/2, -player.size/4);
+                ctx.lineTo(player.size/3, player.size/4);
+                ctx.lineTo(-player.size/3, player.size/4);
+                ctx.closePath();
+                ctx.fill();
+                ctx.fillStyle = '#ffffff'; // Cabin
+                ctx.fillRect(-player.size/4, -player.size/2, player.size/2, player.size/4);
+            }
+            ctx.restore();
+
+            // Draw Particles (Oxygen/Recycle effects)
+            particles.forEach(p => {
+                ctx.globalAlpha = p.life;
+                ctx.fillStyle = p.color;
+                ctx.beginPath();
+                ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+                ctx.fill();
+            });
+            ctx.globalAlpha = 1.0; // Reset alpha
+        }
+
+        // Initialize setup
+        resizeCanvas();
+
+    </script>
+</body>
+</html>
